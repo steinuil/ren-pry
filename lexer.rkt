@@ -53,6 +53,11 @@
    [#\{ (token-L-BRACE)]
    [#\} (token-R-BRACE)]
 
+   [(:: (:? #\return) #\newline (:or (:+ #\space) (:+ #\tab)))
+    (let ([indent (substring lexeme (if (eq? (string-ref lexeme 0) #\return)
+                                        2 1))])
+      (token-INDENT indent))]
+
    [string (token-STRING lexeme)]
    [(:: #\r string) (token-RAW-STRING (substring lexeme 1))]
    [word (token-WORD lexeme)]
@@ -63,7 +68,8 @@
   (STRING
    RAW-STRING
    WORD
-   NUMBER))
+   NUMBER
+   INDENT))
 
 (define-empty-tokens keywords
   (SYM-DOLLAR
@@ -125,15 +131,15 @@
   [image-word (:+ (:or #\- number letter))]
   [number-literal (:: (:? #\-) (:+ number))])
 
+;; Sequence generator for lexers
 (define (in-lexer lexer port)
   (define (pred tok)
     (eq? (token-name (position-token-token tok))
-	 'EOF))
+         'EOF))
   (define (producer)
     (lexer port))
   (stop-after (in-producer producer) pred))
 
-;;;
 (module+ test
   (check-equal? (token-name (consume-token "as")) 'AS)
 
@@ -147,8 +153,9 @@
 
   (check-equal? (token-value (consume-token "\"\"\"a\"\"")) "\"\"")
   (check-equal? (token-value (consume-token "\"\"\"a\"")) "\"\"")
+  (check-equal? (token-value (consume-token "\"\"\"a")) "\"\"")
 
   (let ([tokens (for/list ([token (in-lexer renpy-lexer
-					    (open-input-string "as if"))])
-		  (token-name (position-token-token token)))])
+                                            (open-input-string "as if"))])
+                  (token-name (position-token-token token)))])
     (check-equal? tokens '(AS IF EOF))))
