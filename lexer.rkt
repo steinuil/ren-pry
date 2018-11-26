@@ -2,7 +2,7 @@
 (require parser-tools/lex
          (prefix-in : parser-tools/lex-sre))
 
-(provide renpy-lexer lexer-sequence)
+(provide renpy-lexer in-lexer)
 
 (module+ test
   (require rackunit)
@@ -125,22 +125,13 @@
   [image-word (:+ (:or #\- number letter))]
   [number-literal (:: (:? #\-) (:+ number))])
 
-(define (lexer-sequence lexer port)
-  (make-do-sequence
-   (λ ()
-     (let ([end? #f])
-       (values
-        (λ (pos)
-          (let ([token (lexer port)])
-            (when (eq? (token-name (position-token-token token)) 'EOF)
-              (set! end? #t))
-            token))
-        (λ (pos) (+ 1 pos))
-        0
-        (λ (pos)
-          (not end?))
-        #f
-        #f)))))
+(define (in-lexer lexer port)
+  (define (pred tok)
+    (eq? (token-name (position-token-token tok))
+	 'EOF))
+  (define (producer)
+    (lexer port))
+  (stop-after (in-producer producer) pred))
 
 ;;;
 (module+ test
@@ -155,4 +146,9 @@
     (check-equal? (token-value token) "\"\"\"a\"\"\""))
 
   (check-equal? (token-value (consume-token "\"\"\"a\"\"")) "\"\"")
-  (check-equal? (token-value (consume-token "\"\"\"a\"")) "\"\""))
+  (check-equal? (token-value (consume-token "\"\"\"a\"")) "\"\"")
+
+  (let ([tokens (for/list ([token (in-lexer renpy-lexer
+					    (open-input-string "as if"))])
+		  (token-name (position-token-token token)))])
+    (check-equal? tokens '(AS IF EOF))))

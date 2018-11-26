@@ -8,11 +8,11 @@
           [renpy-get-info get-info]))
 
 (define (renpy-read-syntax path in)
-  (with-syntax ([ls (for/list ([tok (lexer-sequence renpy-lexer in)]) tok)])
+  (with-syntax ([ls (for/list ([tok (in-lexer renpy-lexer in)]) tok)])
     (strip-context
      #'(module test racket
-         (provide data)
-         (define data 'ls)))))
+         (define data 'ls)
+	 (display data)))))
 
 (define (renpy-get-info in-port this-path
                         src-line src-column pos)
