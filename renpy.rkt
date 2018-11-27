@@ -1,6 +1,7 @@
 #lang racket
-(require syntax/strip-context)
-(require "lexer.rkt")
+(require syntax/strip-context
+         "lexer.rkt"
+         "color-lexer.rkt")
 
 (provide (rename-out
           ;[renpy-read read]
@@ -22,9 +23,10 @@
        '(["Ren'Py Sources" "*.rpy"])]
       [(drracket:default-extension)
        "rpy"]
+      [(color-lexer)
+       renpy-color-lexer]
       
-      [(color-lexer
-        drracket:indentation
+      [(drracket:indentation
         drracket:keystrokes
         drracket:show-big-defs/ints-labels
         drracket:opt-out-toolbar-buttons
