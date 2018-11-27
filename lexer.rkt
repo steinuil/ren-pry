@@ -60,7 +60,7 @@
    [#\: (token-SYM-COLON)]
    [#\= (token-SYM-EQUALS)]
 
-   [(:: #\\ #\newline) (token-BACKSLASH)]
+   [(:: #\\ newline) (token-BACKSLASH)]
 
    [#\( (token-L-PAREN)]
    [#\) (token-R-PAREN)]
@@ -68,6 +68,11 @@
    [#\] (token-R-BRACKET)]
    [#\{ (token-L-BRACE)]
    [#\} (token-R-BRACE)]
+
+   [(:: newline (:* whitespace) newline)
+    (begin
+      (unget! input-port)
+      (return-without-pos ((make-renpy-lexer indent-stack) input-port)))]
 
    [(:: newline (:or (:* #\space) (:* #\tab)))
     (calculate-indent indent-stack (substring lexeme 1))]
