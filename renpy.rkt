@@ -8,7 +8,7 @@
           [renpy-get-info get-info]))
 
 (define (renpy-read-syntax path in)
-  (with-syntax ([ls (for/list ([tok (in-lexer renpy-lexer in)]) tok)])
+  (with-syntax ([ls (for/list ([tok (in-lexer (make-renpy-lexer) in)]) tok)])
     (strip-context
      #'(module test racket
          (define data 'ls)

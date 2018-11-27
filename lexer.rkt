@@ -2,19 +2,19 @@
 (require parser-tools/lex
          (prefix-in : parser-tools/lex-sre))
 
-(provide renpy-lexer in-lexer)
+(provide make-renpy-lexer in-lexer)
 
 (module+ test
   (require rackunit)
 
   (define (consume-token str)
-    (position-token-token (renpy-lexer (open-input-string str)))))
+    (position-token-token ((make-renpy-lexer) (open-input-string str)))))
 
-(define renpy-lexer
+(define (make-renpy-lexer (indent-stack '(0)))
   (lexer-src-pos
    [(eof) (token-EOF)]
    [(:or whitespace comment)
-    (return-without-pos (renpy-lexer input-port))]
+    (return-without-pos ((make-renpy-lexer indent-stack) input-port))]
 
    ;; Keywords not allowed in simple expressions
    ["as" (token-AS)]
@@ -53,10 +53,10 @@
    [#\{ (token-L-BRACE)]
    [#\} (token-R-BRACE)]
 
-   [(:: (:? #\return) #\newline (:or (:+ #\space) (:+ #\tab)))
-    (let ([indent (substring lexeme (if (eq? (string-ref lexeme 0) #\return)
-                                        2 1))])
-      (token-INDENT indent))]
+   [(:: (:? #\return) #\newline (:or (:* #\space) (:* #\tab)))
+    (begin
+      (set! indent-stack (cons 1 indent-stack))
+      (token-INDENT indent-stack))]
 
    [string (token-STRING lexeme)]
    [(:: #\r string) (token-RAW-STRING (substring lexeme 1))]
@@ -155,7 +155,7 @@
   (check-equal? (token-value (consume-token "\"\"\"a\"")) "\"\"")
   (check-equal? (token-value (consume-token "\"\"\"a")) "\"\"")
 
-  (let ([tokens (for/list ([token (in-lexer renpy-lexer
+  (let ([tokens (for/list ([token (in-lexer (make-renpy-lexer)
                                             (open-input-string "as if"))])
                   (token-name (position-token-token token)))])
     (check-equal? tokens '(AS IF EOF))))
