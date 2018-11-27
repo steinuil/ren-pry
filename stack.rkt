@@ -5,11 +5,22 @@
          stack-pop!
          stack-peek)
 
+(module+ test
+  (require rackunit))
+
 (define (stack-push! stack item)
   (set-box! stack (cons item (unbox stack))))
 
 (define (stack-pop! stack)
-  (set-box! stack (cdr (unbox stack))))
+  (let ([unboxed-stack (unbox stack)])
+    (set-box! stack (cdr unboxed-stack))
+    (car unboxed-stack)))
+
+(module+ test
+  (check-equal? (stack-pop! (make-stack 0)) 0)
+  (let ([stack (make-stack 0 1)])
+    (check-equal? (stack-pop! stack) 1)
+    (check-equal? (stack-peek stack) 0)))
 
 (define (stack-peek stack (n 0))
   (list-ref (unbox stack) n))

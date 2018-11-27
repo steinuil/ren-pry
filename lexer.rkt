@@ -11,14 +11,14 @@
 (define (calculate-indent stack indent)
   (define level (string-length indent))
   (define (pop-until-eq)
-    (stack-pop! stack)
+    (define last (stack-pop! stack))
     (define top (stack-peek stack))
     (cond [(eq? top level) 'DEDENT]
           [(> top level) (pop-until-eq)]
           [else
            (error 'calculate-indent
-                  "invalid dedent: expected ~a, got ~a"
-                  top level)]))
+                  "invalid indentation: expected ~a or ~a, got ~a"
+                  top last level)]))
   (define top (stack-peek stack))
   (cond [(eq? top level) 'NODENT]
         [(< top level)

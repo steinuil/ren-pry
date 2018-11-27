@@ -4,6 +4,8 @@ init offset = -2
   indent
   indent
    a
+  as \
+ asdaa
   as
 
 #aaaa
