@@ -11,8 +11,8 @@
 (define (stack-pop! stack)
   (set-box! stack (cdr (unbox stack))))
 
-(define (stack-peek stack)
-  (cdr (unbox stack)))
+(define (stack-peek stack (n 0))
+  (list-ref (unbox stack) n))
 
 (define (make-stack . items)
   (box (reverse items)))

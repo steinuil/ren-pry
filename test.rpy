@@ -3,6 +3,8 @@
 init offset = -2
   indent
   indent
+   a
+  as
 
 #aaaa
 

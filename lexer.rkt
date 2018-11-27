@@ -8,6 +8,24 @@
 (define (unget! port)
   (file-position port (- (file-position port) 1)))
 
+(define (calculate-indent stack indent)
+  (define level (string-length indent))
+  (define (pop-until-eq)
+    (stack-pop! stack)
+    (define top (stack-peek stack))
+    (cond [(eq? top level) 'DEDENT]
+          [(> top level) (pop-until-eq)]
+          [else
+           (error 'calculate-indent
+                  "invalid dedent: expected ~a, got ~a"
+                  top level)]))
+  (define top (stack-peek stack))
+  (cond [(eq? top level) 'NODENT]
+        [(< top level)
+         (stack-push! stack level)
+         'INDENT]
+        [else (pop-until-eq)]))
+
 (define (make-renpy-lexer (indent-stack (make-stack 0)))
   (lexer-src-pos
    [(eof) (token-EOF)]
@@ -52,9 +70,7 @@
    [#\} (token-R-BRACE)]
 
    [(:: newline (:or (:* #\space) (:* #\tab)))
-    (begin
-      (stack-push! indent-stack 1)
-      (token-INDENT))]
+    (calculate-indent indent-stack (substring lexeme 1))]
 
    [comment
     (begin
@@ -106,7 +122,7 @@
    L-BRACKET R-BRACKET
    L-PAREN R-PAREN
    L-BRACE R-BRACE
-   INDENT DEDENT))
+   INDENT DEDENT NODENT))
 
 (define-lex-trans rpy-string
   (syntax-rules ()
@@ -174,6 +190,6 @@
   (check-equal? (token-value (consume-token "\"\"\"a\"")) "\"\"")
   (check-equal? (token-value (consume-token "\"\"\"a")) "\"\"")
 
-  (check-equal? (token-name-list "# tfw no gf\n") '(INDENT EOF))
+  (check-equal? (token-name-list "# tfw no gf\n") '(NODENT EOF))
 
   (check-equal? (token-name-list "as if") '(AS IF EOF)))
