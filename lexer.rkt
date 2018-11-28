@@ -5,8 +5,8 @@
 
 (provide make-renpy-lexer in-lexer)
 
-(define (unget! port)
-  (file-position port (- (file-position port) 1)))
+(define (unget! port (n 1))
+  (file-position port (- (file-position port) n)))
 
 (define (calculate-indent stack indent)
   (define level (string-length indent))
@@ -59,6 +59,7 @@
    [#\$ (token-SYM-DOLLAR)]
    [#\: (token-SYM-COLON)]
    [#\= (token-SYM-EQUALS)]
+   [#\, (token-SYM-COMMA)]
 
    [(:: #\\ newline) (token-BACKSLASH)]
 
@@ -82,11 +83,56 @@
       (unget! input-port)
       (return-without-pos ((make-renpy-lexer indent-stack) input-port)))]
 
-   [string (token-STRING lexeme)]
-   [(:: #\r string) (token-RAW-STRING (substring lexeme 1))]
+   [(:or #\" #\' #\`)
+    (token-STRING (string-lexer input-port (string-ref lexeme 0) 1))]
+
+   [(:: #\r (:or #\" #\' #\`))
+    (token-RAW-STRING (string-lexer input-port (string-ref lexeme 1) 1))]
+
+   [(:or (:= 3 #\")
+         (:= 3 #\')
+         (:= 3 #\`))
+    (token-STRING (string-lexer input-port (string-ref lexeme 0) 3))]
+
+   [(:: #\r
+        (:or (:= 3 #\")
+             (:= 3 #\')
+             (:= 3 #\`)))
+    (token-RAW-STRING (string-lexer input-port (string-ref lexeme 1) 3))]
+
+   ;[string-literal (token-STRING lexeme)]
+   ;[(:: #\r string-literal) (token-RAW-STRING (substring lexeme 1))]
    [word (token-WORD lexeme)]
    [number-literal (token-NUMBER lexeme)]
    ))
+
+;; FIXME return #f and backtrack when the number of quotes is > than 1 and
+;; an EOF object is returned
+;; Keep track of the number of chars for the position-token
+(define (string-lexer port quote n)
+  (define out "")
+  (let loop ()
+    (define chr (read-char port))
+    (cond [(eof-object? chr)
+           (error "unterminated string")]
+          [(and (eq? chr quote)
+                (= n 1))
+           out]
+          [(eq? chr #\\)
+           (define escaped (read-char port))
+           (unless (eq? escaped quote)
+             (set! out (string-append out (string chr))))
+           (set! out (string-append out (string escaped)))
+           (loop)]
+          [(eq? chr quote)
+           (if (string=? (read-string n port) (make-string (- n 1) quote))
+               out
+               (begin
+                 (unget! port (- n 2))
+                 (loop)))]
+          [else
+           (set! out (string-append out (string chr)))
+           (loop)])))
 
 (define-tokens tokens
   (STRING
@@ -124,27 +170,14 @@
   (EOF
    SYM-COLON
    SYM-EQUALS
+   SYM-COMMA
    BACKSLASH
    L-BRACKET R-BRACKET
    L-PAREN R-PAREN
    L-BRACE R-BRACE
    INDENT NODENT))
 
-(define-lex-trans rpy-string
-  (syntax-rules ()
-    [(_ n q)
-     (:: (:= n q)
-         (complement (:: (:* (:~ #\\ q)) (:= n q) any-string))
-         (:= n q))]))
-
 (define-lex-abbrevs
-  [string (:or (rpy-string 3 #\')
-               (rpy-string 3 #\")
-               (rpy-string 3 #\`)
-               (rpy-string 1 #\')
-               (rpy-string 1 #\")
-               (rpy-string 1 #\`))]
-
   [newline (:: (:? #\return) #\newline)]
 
   [whitespace (:or #\tab #\space)]
@@ -186,15 +219,17 @@
 
   (let ([token (consume-token "r\"a\"")])
     (check-equal? (token-name token) 'RAW-STRING)
-    (check-equal? (token-value token) "\"a\""))
+    (check-equal? (token-value token) "a"))
 
   (let ([token (consume-token "\"\"\"a\"\"\"")])
     (check-equal? (token-name token) 'STRING)
-    (check-equal? (token-value token) "\"\"\"a\"\"\""))
+    (check-equal? (token-value token) "a"))
 
-  (check-equal? (token-value (consume-token "\"\"\"a\"\"")) "\"\"")
-  (check-equal? (token-value (consume-token "\"\"\"a\"")) "\"\"")
-  (check-equal? (token-value (consume-token "\"\"\"a")) "\"\"")
+  ;(check-equal? (token-value (consume-token "\"\"\"a\"\"")) "\"\"")
+  ;(check-equal? (token-value (consume-token "\"\"\"a\"")) "\"\"")
+  ;(check-equal? (token-value (consume-token "\"\"\"a")) "\"\"")
+
+  (check-equal? (token-value (consume-token "\"\\\"\"")) "\"")
 
   (check-equal? (token-name-list "# tfw no gf\n") '(NODENT EOF))
 
