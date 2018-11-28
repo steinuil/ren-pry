@@ -2,13 +2,11 @@
 
 init offset = -2
   indent
-  indent
-   a
-  as \
- asdaa
-  as
+    indent
+  dedent 1
+    indent
 
-#aaaa
+#dedent 2
 
 """gimme some
 multiline

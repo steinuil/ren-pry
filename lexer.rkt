@@ -10,21 +10,21 @@
 
 (define (calculate-indent stack indent)
   (define level (string-length indent))
-  (define (pop-until-eq)
+  (define (pop-until-eq n)
     (define last (stack-pop! stack))
     (define top (stack-peek stack))
-    (cond [(eq? top level) 'DEDENT]
-          [(> top level) (pop-until-eq)]
+    (cond [(eq? top level) (token-DEDENT n)]
+          [(> top level) (pop-until-eq (+ n 1))]
           [else
            (error 'calculate-indent
                   "invalid indentation: expected ~a or ~a, got ~a"
                   top last level)]))
   (define top (stack-peek stack))
-  (cond [(eq? top level) 'NODENT]
+  (cond [(eq? top level) (token-NODENT)]
         [(< top level)
          (stack-push! stack level)
-         'INDENT]
-        [else (pop-until-eq)]))
+         (token-INDENT)]
+        [else (pop-until-eq 1)]))
 
 (define (make-renpy-lexer (indent-stack (make-stack 0)))
   (lexer-src-pos
@@ -69,7 +69,7 @@
    [#\{ (token-L-BRACE)]
    [#\} (token-R-BRACE)]
 
-   [(:: newline (:* whitespace) newline)
+   [(:: newline (:* whitespace) (:? comment) newline)
     (begin
       (unget! input-port)
       (return-without-pos ((make-renpy-lexer indent-stack) input-port)))]
@@ -77,7 +77,7 @@
    [(:: newline (:or (:* #\space) (:* #\tab)))
     (calculate-indent indent-stack (substring lexeme 1))]
 
-   [comment
+   [(:: comment newline)
     (begin
       (unget! input-port)
       (return-without-pos ((make-renpy-lexer indent-stack) input-port)))]
@@ -92,7 +92,8 @@
   (STRING
    RAW-STRING
    WORD
-   NUMBER))
+   NUMBER
+   DEDENT))
 
 (define-empty-tokens keywords
   (SYM-DOLLAR
@@ -127,7 +128,7 @@
    L-BRACKET R-BRACKET
    L-PAREN R-PAREN
    L-BRACE R-BRACE
-   INDENT DEDENT NODENT))
+   INDENT NODENT))
 
 (define-lex-trans rpy-string
   (syntax-rules ()
@@ -147,7 +148,7 @@
   [newline (:: (:? #\return) #\newline)]
 
   [whitespace (:or #\tab #\space)]
-  [comment (:: #\# (:* (:~ #\newline)) newline)]
+  [comment (:: #\# (:* (:~ #\newline)))]
 
   [letter (:or #\_ (:/ #\a #\z
                        #\A #\Z
