@@ -1,4 +1,5 @@
 /compiled
-*~
 *.bak
+*.swp
+*~
 *#
