@@ -30,20 +30,10 @@
     (values lexeme 'whitespace #f
             (position-offset start-pos)
             (position-offset end-pos))]
-   [#\(
-    (values lexeme 'parenthesis #\(
-            (position-offset start-pos)
-            (position-offset end-pos))]
-   [#\)
-    (values lexeme 'parenthesis #\)
-            (position-offset start-pos)
-            (position-offset end-pos))]
-   [#\[
-    (values lexeme 'parenthesis #\[
-            (position-offset start-pos)
-            (position-offset end-pos))]
-   [#\]
-    (values lexeme 'parenthesis #\]
+   [(:or #\( #\)
+         #\[ #\]
+         #\{ #\})
+    (values lexeme 'parenthesis (string-ref lexeme 0)
             (position-offset start-pos)
             (position-offset end-pos))]
    [any-char
