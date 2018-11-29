@@ -70,6 +70,7 @@
    [#\{ (token-L-BRACE)]
    [#\} (token-R-BRACE)]
 
+   ;; Empty line
    [(:: newline (:* whitespace) (:? comment) newline)
     (begin
       (unget! input-port)
@@ -83,25 +84,14 @@
       (unget! input-port)
       (return-without-pos ((make-renpy-lexer indent-stack) input-port)))]
 
-   [(:or #\" #\' #\`)
-    (token-STRING (string-lexer input-port (string-ref lexeme 0) 1))]
+   [string-delimiter
+    (token-STRING (string-lexer input-port (string-ref lexeme 0)
+                                (string-length lexeme)))]
 
-   [(:: #\r (:or #\" #\' #\`))
-    (token-RAW-STRING (string-lexer input-port (string-ref lexeme 1) 1))]
+   [(:: #\r string-delimiter)
+    (token-RAW-STRING (string-lexer input-port (string-ref lexeme 1)
+                                    (- (string-length lexeme) 1)))]
 
-   [(:or (:= 3 #\")
-         (:= 3 #\')
-         (:= 3 #\`))
-    (token-STRING (string-lexer input-port (string-ref lexeme 0) 3))]
-
-   [(:: #\r
-        (:or (:= 3 #\")
-             (:= 3 #\')
-             (:= 3 #\`)))
-    (token-RAW-STRING (string-lexer input-port (string-ref lexeme 1) 3))]
-
-   ;[string-literal (token-STRING lexeme)]
-   ;[(:: #\r string-literal) (token-RAW-STRING (substring lexeme 1))]
    [word (token-WORD lexeme)]
    [number-literal (token-NUMBER lexeme)]
    ))
@@ -125,10 +115,12 @@
            (set! out (string-append out (string escaped)))
            (loop)]
           [(eq? chr quote)
+           ;; Review this part better
            (if (string=? (read-string n port) (make-string (- n 1) quote))
                out
                (begin
-                 (unget! port (- n 2))
+                 (unget! port n)
+                 (set! out (string-append out (string chr (read-char port))))
                  (loop)))]
           [else
            (set! out (string-append out (string chr)))
@@ -183,6 +175,11 @@
   [whitespace (:or #\tab #\space)]
   [comment (:: #\# (:* (:~ #\newline)))]
 
+  [string-delimiter (:or (:= 3 #\")
+                         (:= 3 #\')
+                         (:= 3 #\`)
+                         #\" #\' #\`)]
+
   [letter (:or #\_ (:/ #\a #\z
                        #\A #\Z
                        #\u00A0 #\uFFFD))]
@@ -193,6 +190,7 @@
 
 ;; Sequence generator for lexers
 (define (in-lexer lexer port)
+  (port-count-lines! port)
   (define (eof? tok)
     (eq? (token-name (position-token-token tok))
          'EOF))
@@ -224,6 +222,11 @@
   (let ([token (consume-token "\"\"\"a\"\"\"")])
     (check-equal? (token-name token) 'STRING)
     (check-equal? (token-value token) "a"))
+
+  (check-equal? (token-value (consume-token "r`abcd`")) "abcd")
+
+  (check-equal? (token-value (consume-token "```1`2``3`3```"))
+                "1`2``3`3")
 
   ;(check-equal? (token-value (consume-token "\"\"\"a\"\"")) "\"\"")
   ;(check-equal? (token-value (consume-token "\"\"\"a\"")) "\"\"")
