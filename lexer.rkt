@@ -86,12 +86,22 @@
       (return-without-pos ((make-renpy-lexer indent-stack) input-port)))]
 
    [string-delimiter
-    (token-STRING (string-lexer input-port (string-ref lexeme 0)
-                                (string-length lexeme)))]
+    (let-values ([(str end-line end-col end-offset)
+                  (string-lexer input-port (string-ref lexeme 0)
+                                (string-length lexeme))])
+      (return-without-pos
+       (position-token (token-STRING str)
+                       (position-offset start-pos)
+                       (position-offset (position end-offset end-line end-col)))))]
 
    [(:: #\r string-delimiter)
-    (token-RAW-STRING (string-lexer input-port (string-ref lexeme 1)
-                                    (- (string-length lexeme) 1)))]
+    (let-values ([(str end-line end-col end-offset)
+                  (string-lexer input-port (string-ref lexeme 1)
+                                (- (string-length lexeme) 1))])
+      (return-without-pos
+       (position-token (token-RAW-STRING str)
+                       (position-offset start-pos)
+                       (position-offset (position end-offset end-line end-col)))))]
 
    [word (token-WORD lexeme)]
    [number-literal (token-NUMBER lexeme)]
@@ -103,12 +113,13 @@
 (define (string-lexer port quote n)
   (define out "")
   (let loop ()
+    (define-values (c-line c-col c-offset) (port-next-location port))
     (define chr (read-char port))
     (cond [(eof-object? chr)
            (error "unterminated string")]
           [(and (eq? chr quote)
                 (= n 1))
-           out]
+           (values out c-line (+ c-col 1) (+ c-offset 1))]
           [(eq? chr #\\)
            (define escaped (read-char port))
            (unless (eq? escaped quote)
@@ -117,10 +128,12 @@
            (loop)]
           [(eq? chr quote)
            ;; Review this part better
-           (if (string=? (read-string n port) (make-string (- n 1) quote))
-               out
+           (if (string=? (read-string (- n 1) port)
+                         (make-string (- n 1) quote))
+               (values out c-line (+ c-col n)
+                       (+ c-offset n))
                (begin
-                 (unget! port n)
+                 (unget! port (- n 1))
                  (set! out (string-append out (string chr (read-char port))))
                  (loop)))]
           [else
@@ -204,7 +217,9 @@
   (require rackunit)
 
   (define (consume-token str)
-    (position-token-token ((make-renpy-lexer) (open-input-string str))))
+    (define input (open-input-string str))
+    (port-count-lines! input)
+    (position-token-token ((make-renpy-lexer) input)))
 
   (define (token-list str)
     (for/list ([token (in-lexer (make-renpy-lexer)
@@ -228,6 +243,9 @@
 
   (check-equal? (token-value (consume-token "```1`2``3`3```"))
                 "1`2``3`3")
+
+  (check-equal? (token-value (consume-token "```1```123"))
+                "1")
 
   ;(check-equal? (token-value (consume-token "\"\"\"a\"\"")) "\"\"")
   ;(check-equal? (token-value (consume-token "\"\"\"a\"")) "\"\"")
