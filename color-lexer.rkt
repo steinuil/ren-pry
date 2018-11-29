@@ -12,6 +12,10 @@
     (values lexeme 'comment #f
             (position-offset start-pos)
             (position-offset end-pos))]
+   [number-literal
+    (values lexeme 'constant #f
+            (position-offset start-pos)
+            (position-offset end-pos))]
    [any-char
     (values lexeme 'no-color #f
             (position-offset start-pos)
@@ -19,4 +23,19 @@
 
 (define-lex-abbrevs
   [newline (:: (:? #\return) #\newline)]
-  [comment (:: #\# (:* (:~ #\newline)) newline)])
+
+  [whitespace (:or #\tab #\space)]
+  [comment (:: #\# (:* (:~ #\newline)))]
+
+  [string-delimiter (:or (:= 3 #\")
+                         (:= 3 #\')
+                         (:= 3 #\`)
+                         #\" #\' #\`)]
+
+  [letter (:or #\_ (:/ #\a #\z
+                       #\A #\Z
+                       #\u00A0 #\uFFFD))]
+  [number (:/ #\0 #\9)]
+  [word (:: letter (:* (:or letter number)))]
+  [image-word (:+ (:or #\- number letter))]
+  [number-literal (:: (:? #\-) (:+ number))])

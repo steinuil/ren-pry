@@ -3,7 +3,8 @@
          (prefix-in : parser-tools/lex-sre)
          "stack.rkt")
 
-(provide make-renpy-lexer in-lexer)
+(provide make-renpy-lexer in-lexer
+         (rename-out [string-lexer renpy-string-lexer]))
 
 (define (unget! port (n 1))
   (file-position port (- (file-position port) n)))
