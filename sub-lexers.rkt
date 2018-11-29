@@ -25,9 +25,8 @@
   [indentation (:: newline (:or (:* #\space) (:* #\tab)))])
 
 
-;; TODO figure out a way to report errors for the color lexer
-;; FIXME return #f and backtrack when the number of quotes is > than 1 and
-;; an EOF object is returned
+;; TODO check if the ren'py parser allows an empty single-quote
+;; string and then another string right after (I'm guessing not).
 ;; TODO check if the port has location enabled
 (define (string-literal port delim n)
   (define out "")
@@ -39,17 +38,19 @@
     (define-values (line col offset) (port-next-location port))
     (match (read-char port)
       [eof
-       (error "unterminated string")]
+       (values #f line col offset)]
       [delim #:when (= n 1)
        (values out line (+ col 1) (+ offset 1))]
       [delim
        (define maybe-end (read-string (- n 1) port))
-       (if (string=? maybe-end end-delim)
-           (values out line (+ col n) (+ offset n))
-           (begin
-             (unget port (- n 2))
-             (append-chars! chr (string-ref maybe-end 0))
-             (keep-lexing)))]
+       (cond [(eof-object? maybe-end)
+              (values #f line col offset)]
+             [(string=? maybe-end end-delim)
+              (values out line (+ col n) (+ offset n))]
+             [else
+              (unget port (- n 2))
+              (append-chars! chr (string-ref maybe-end 0))
+              (keep-lexing)])]
       [#\\
        (define escaped (read-char port))
        (unless (eq? escaped delim)
