@@ -6,27 +6,6 @@
 (provide make-renpy-lexer in-lexer
          (rename-out [string-lexer renpy-string-lexer]))
 
-(define (unget! port (n 1))
-  (file-position port (- (file-position port) n)))
-
-(define (calculate-indent stack indent)
-  (define level (string-length indent))
-  (define (pop-until-eq n)
-    (define last (stack-pop! stack))
-    (define top (stack-peek stack))
-    (cond [(eq? top level) (token-DEDENT n)]
-          [(> top level) (pop-until-eq (+ n 1))]
-          [else
-           (error 'calculate-indent
-                  "invalid indentation: expected ~a or ~a, got ~a"
-                  top last level)]))
-  (define top (stack-peek stack))
-  (cond [(eq? top level) (token-NODENT)]
-        [(< top level)
-         (stack-push! stack level)
-         (token-INDENT)]
-        [else (pop-until-eq 1)]))
-
 (define (make-renpy-lexer (indent-stack (make-stack 0)))
   (lexer-src-pos
    [(eof) (token-EOF)]
@@ -111,6 +90,48 @@
    [number-literal (token-NUMBER lexeme)]
    ))
 
+(define-lex-abbrevs
+  [newline (:: (:? #\return) #\newline)]
+
+  [whitespace (:or #\tab #\space)]
+  [comment (:: #\# (:* (:~ #\newline)))]
+
+  [string-delimiter (:or (:= 3 #\")
+                         (:= 3 #\')
+                         (:= 3 #\`)
+                         #\" #\' #\`)]
+
+  [letter (:or #\_ (:/ #\a #\z
+                       #\A #\Z
+                       #\u00A0 #\uFFFD))]
+  [number (:/ #\0 #\9)]
+  [word (:: letter (:* (:or letter number)))]
+  [image-word (:+ (:or #\- number letter))]
+  ;; FIXME numbers that start with a dot
+  [number-literal (:: (:? #\-)
+                      (:or (:: (:+ number)
+                               (:? (:: #\. (:* number))))
+                           (:: #\. (:+ number))))])
+
+
+(define (calculate-indent stack indent)
+  (define level (string-length indent))
+  (define (pop-until-eq n)
+    (define last (stack-pop! stack))
+    (define top (stack-peek stack))
+    (cond [(eq? top level) (token-DEDENT n)]
+          [(> top level) (pop-until-eq (+ n 1))]
+          [else
+           (error 'calculate-indent
+                  "invalid indentation: expected ~a or ~a, got ~a"
+                  top last level)]))
+  (define top (stack-peek stack))
+  (cond [(eq? top level) (token-NODENT)]
+        [(< top level)
+         (stack-push! stack level)
+         (token-INDENT)]
+        [else (pop-until-eq 1)]))
+
 ;; FIXME return #f and backtrack when the number of quotes is > than 1 and
 ;; an EOF object is returned
 ;; Keep track of the number of chars for the position-token
@@ -143,6 +164,23 @@
           [else
            (set! out (string-append out (string chr)))
            (loop)])))
+
+
+
+(define (unget! port (n 1))
+  (file-position port (- (file-position port) n)))
+
+;; Sequence generator for lexers
+(define (in-lexer lexer port)
+  (port-count-lines! port)
+  (define (eof? tok)
+    (eq? (token-name (position-token-token tok))
+         'EOF))
+  (define (producer)
+    (lexer port))
+  (stop-after (in-producer producer) eof?))
+
+
 
 (define-tokens tokens
   (STRING
@@ -191,38 +229,7 @@
    L-BRACE R-BRACE
    INDENT NODENT))
 
-(define-lex-abbrevs
-  [newline (:: (:? #\return) #\newline)]
 
-  [whitespace (:or #\tab #\space)]
-  [comment (:: #\# (:* (:~ #\newline)))]
-
-  [string-delimiter (:or (:= 3 #\")
-                         (:= 3 #\')
-                         (:= 3 #\`)
-                         #\" #\' #\`)]
-
-  [letter (:or #\_ (:/ #\a #\z
-                       #\A #\Z
-                       #\u00A0 #\uFFFD))]
-  [number (:/ #\0 #\9)]
-  [word (:: letter (:* (:or letter number)))]
-  [image-word (:+ (:or #\- number letter))]
-  ;; FIXME numbers that start with a dot
-  [number-literal (:: (:? #\-)
-                      (:or (:: (:+ number)
-                               (:? (:: #\. (:* number))))
-                           (:: #\. (:+ number))))])
-
-;; Sequence generator for lexers
-(define (in-lexer lexer port)
-  (port-count-lines! port)
-  (define (eof? tok)
-    (eq? (token-name (position-token-token tok))
-         'EOF))
-  (define (producer)
-    (lexer port))
-  (stop-after (in-producer producer) eof?))
 
 ;;; Test
 (module+ test
