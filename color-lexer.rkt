@@ -26,6 +26,26 @@
               (position-offset start-pos)
               (position-offset
                (position end-offset end-line end-col))))]
+   [(:+ whitespace)
+    (values lexeme 'whitespace #f
+            (position-offset start-pos)
+            (position-offset end-pos))]
+   [#\(
+    (values lexeme 'parenthesis #\(
+            (position-offset start-pos)
+            (position-offset end-pos))]
+   [#\)
+    (values lexeme 'parenthesis #\)
+            (position-offset start-pos)
+            (position-offset end-pos))]
+   [#\[
+    (values lexeme 'parenthesis #\[
+            (position-offset start-pos)
+            (position-offset end-pos))]
+   [#\]
+    (values lexeme 'parenthesis #\]
+            (position-offset start-pos)
+            (position-offset end-pos))]
    [any-char
     (values lexeme 'no-color #f
             (position-offset start-pos)
@@ -48,4 +68,7 @@
   [number (:/ #\0 #\9)]
   [word (:: letter (:* (:or letter number)))]
   [image-word (:+ (:or #\- number letter))]
-  [number-literal (:: (:? #\-) (:+ number))])
+  [number-literal (:: (:? #\-)
+                      (:or (:: (:+ number)
+                               (:? (:: #\. (:* number))))
+                           (:: #\. (:+ number))))])

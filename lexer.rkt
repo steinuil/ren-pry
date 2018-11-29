@@ -61,6 +61,10 @@
    [#\: (token-SYM-COLON)]
    [#\= (token-SYM-EQUALS)]
    [#\, (token-SYM-COMMA)]
+   [#\. (token-SYM-PERIOD)]
+   [#\* (token-SYM-ASTERISK)]
+   [#\+ (token-SYM-PLUS)]
+   [#\- (token-SYM-MINUS)]
 
    [(:: #\\ newline) (token-BACKSLASH)]
 
@@ -177,6 +181,10 @@
    SYM-COLON
    SYM-EQUALS
    SYM-COMMA
+   SYM-PERIOD
+   SYM-ASTERISK
+   SYM-PLUS
+   SYM-MINUS
    BACKSLASH
    L-BRACKET R-BRACKET
    L-PAREN R-PAREN
@@ -200,7 +208,11 @@
   [number (:/ #\0 #\9)]
   [word (:: letter (:* (:or letter number)))]
   [image-word (:+ (:or #\- number letter))]
-  [number-literal (:: (:? #\-) (:+ number))])
+  ;; FIXME numbers that start with a dot
+  [number-literal (:: (:? #\-)
+                      (:or (:: (:+ number)
+                               (:? (:: #\. (:* number))))
+                           (:: #\. (:+ number))))])
 
 ;; Sequence generator for lexers
 (define (in-lexer lexer port)
@@ -246,6 +258,15 @@
 
   (check-equal? (token-value (consume-token "```1```123"))
                 "1")
+
+  (check-equal? (consume-token "1") (token-NUMBER "1"))
+  (check-equal? (consume-token "12") (token-NUMBER "12"))
+  (check-equal? (consume-token "-123") (token-NUMBER "-123"))
+  (check-equal? (consume-token "1.0") (token-NUMBER "1.0"))
+  (check-equal? (consume-token "1.") (token-NUMBER "1."))
+  (check-equal? (consume-token "1.23") (token-NUMBER "1.23"))
+  (check-equal? (consume-token ".23") (token-NUMBER ".23"))
+  (check-equal? (consume-token "-.12") (token-NUMBER "-.12"))
 
   ;(check-equal? (token-value (consume-token "\"\"\"a\"\"")) "\"\"")
   ;(check-equal? (token-value (consume-token "\"\"\"a\"")) "\"\"")
