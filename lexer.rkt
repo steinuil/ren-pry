@@ -1,16 +1,14 @@
 #lang racket
 (require parser-tools/lex
          (prefix-in : parser-tools/lex-sre)
-         "stack.rkt")
+         "stack.rkt"
+         "sub-lexers.rkt")
 
-(provide make-renpy-lexer in-lexer
-         (rename-out [string-lexer renpy-string-lexer]))
+(provide make-renpy-lexer in-lexer)
 
 (define (make-renpy-lexer (indent-stack (make-stack 0)))
   (lexer-src-pos
    [(eof) (token-EOF)]
-   [whitespace
-    (return-without-pos ((make-renpy-lexer indent-stack) input-port))]
 
    ;; Keywords not allowed in simple expressions
    ["as" (token-AS)]
@@ -45,8 +43,6 @@
    [#\+ (token-SYM-PLUS)]
    [#\- (token-SYM-MINUS)]
 
-   [(:: #\\ newline) (token-BACKSLASH)]
-
    [#\( (token-L-PAREN)]
    [#\) (token-R-PAREN)]
    [#\[ (token-L-BRACKET)]
@@ -54,31 +50,37 @@
    [#\{ (token-L-BRACE)]
    [#\} (token-R-BRACE)]
 
+   [(:: #\\ linebreak) (token-BACKSLASH)]
+
+
+   [white-space
+    (return-without-pos ((make-renpy-lexer indent-stack) input-port))]
+
    ;; Empty line
-   [(:: newline (complement newline) (:? comment))
+   #;[(:: newline (complement newline) (:? comment))
     (begin
       (return-without-pos ((make-renpy-lexer indent-stack) input-port)))]
 
-   [(:: newline (:or (:* #\space) (:* #\tab)))
+   [(:: linebreak (:or (:* #\space) (:* #\tab)))
     (calculate-indent indent-stack (substring lexeme 1))]
 
    [comment
     (begin
       (return-without-pos ((make-renpy-lexer indent-stack) input-port)))]
 
-   [string-delimiter
+   [string-delim
     (let-values ([(str end-line end-col end-offset)
-                  (string-lexer input-port (string-ref lexeme 0)
-                                (string-length lexeme))])
+                  (string-literal input-port (string-ref lexeme 0)
+                                  (string-length lexeme))])
       (return-without-pos
        (position-token (token-STRING str)
                        (position-offset start-pos)
                        (position-offset (position end-offset end-line end-col)))))]
 
-   [(:: #\r string-delimiter)
+   [raw-string-delim
     (let-values ([(str end-line end-col end-offset)
-                  (string-lexer input-port (string-ref lexeme 1)
-                                (- (string-length lexeme) 1))])
+                  (string-literal input-port (string-ref lexeme 1)
+                                  (- (string-length lexeme) 1))])
       (return-without-pos
        (position-token (token-RAW-STRING str)
                        (position-offset start-pos)
@@ -87,29 +89,6 @@
    [word (token-WORD lexeme)]
    [number-literal (token-NUMBER lexeme)]
    ))
-
-(define-lex-abbrevs
-  [newline (:: (:? #\return) #\newline)]
-
-  [whitespace (:or #\tab #\space)]
-  [comment (:: #\# (:* (:~ #\newline)))]
-
-  [string-delimiter (:or (:= 3 #\")
-                         (:= 3 #\')
-                         (:= 3 #\`)
-                         #\" #\' #\`)]
-
-  [letter (:or #\_ (:/ #\a #\z
-                       #\A #\Z
-                       #\u00A0 #\uFFFD))]
-  [number (:/ #\0 #\9)]
-  [word (:: letter (:* (:or letter number)))]
-  [image-word (:+ (:or #\- number letter))]
-  ;; FIXME numbers that start with a dot
-  [number-literal (:: (:? #\-)
-                      (:or (:: (:+ number)
-                               (:? (:: #\. (:* number))))
-                           (:: #\. (:+ number))))])
 
 
 (define (calculate-indent stack indent)
@@ -130,44 +109,6 @@
          (token-INDENT)]
         [else (pop-until-eq 1)]))
 
-;; FIXME return #f and backtrack when the number of quotes is > than 1 and
-;; an EOF object is returned
-;; Keep track of the number of chars for the position-token
-(define (string-lexer port quote n)
-  (define out "")
-  (let loop ()
-    (define-values (c-line c-col c-offset) (port-next-location port))
-    (define chr (read-char port))
-    (cond [(eof-object? chr)
-           (error "unterminated string")]
-          [(and (eq? chr quote)
-                (= n 1))
-           (values out c-line (+ c-col 1) (+ c-offset 1))]
-          [(eq? chr #\\)
-           (define escaped (read-char port))
-           (unless (eq? escaped quote)
-             (set! out (string-append out (string chr))))
-           (set! out (string-append out (string escaped)))
-           (loop)]
-          [(eq? chr quote)
-           ;; Review this part better
-           (if (string=? (read-string (- n 1) port)
-                         (make-string (- n 1) quote))
-               (values out c-line (+ c-col n)
-                       (+ c-offset n))
-               (begin
-                 (unget! port (- n 1))
-                 (set! out (string-append out (string chr (read-char port))))
-                 (loop)))]
-          [else
-           (set! out (string-append out (string chr)))
-           (loop)])))
-
-
-
-(define (unget! port (n 1))
-  (define pos (file-position port))
-  (file-position port (- pos n)))
 
 ;; Sequence generator for lexers
 (define (in-lexer lexer port)
