@@ -6,7 +6,7 @@
 
 (provide make-renpy-lexer in-lexer)
 
-(define (make-renpy-lexer (indent-stack (make-stack 0)))
+(define (renpy-lexer indent-stack)
   (lexer-src-pos
    [(eof) (token-EOF)]
 
@@ -54,19 +54,13 @@
 
 
    [white-space
-    (return-without-pos ((make-renpy-lexer indent-stack) input-port))]
+    (return-without-pos ((renpy-lexer indent-stack) input-port))]
 
-   ;; Empty line
-   #;[(:: newline (complement newline) (:? comment))
-    (begin
-      (return-without-pos ((make-renpy-lexer indent-stack) input-port)))]
-
-   [(:: linebreak (:or (:* #\space) (:* #\tab)))
-    (calculate-indent indent-stack (substring lexeme 1))]
+   [linebreak
+    (return-without-pos ((lex-line-beg indent-stack) input-port))]
 
    [comment
-    (begin
-      (return-without-pos ((make-renpy-lexer indent-stack) input-port)))]
+    (return-without-pos ((renpy-lexer indent-stack) input-port))]
 
    [string-delim
     (let-values ([(str end-line end-col end-offset)
@@ -90,6 +84,36 @@
    [number-literal (token-NUMBER lexeme)]
    ))
 
+;; TODO fix "can accept the empty string" warning somehow
+(define (lex-line-beg indent-stack)
+  (lexer-src-pos
+   [(eof) (token-EOF)]
+   [(:: (:* white-space) (:? comment) linebreak)
+    (return-without-pos ((lex-line-beg indent-stack) input-port))]
+   [(:or (:+ #\space) (:+ #\tab))
+    (calculate-indent indent-stack lexeme)]
+   [""
+    (calculate-indent indent-stack lexeme)]))
+
+
+;; TODO keep track of the next lexer to use.
+;; We need this to start with the lex-line-beg lexer,
+;; and to return multiple DEDENT tokens
+(define (make-renpy-lexer)
+  (define indent-stack (make-stack 0))
+  (λ (input) ((renpy-lexer indent-stack) input)))
+
+
+;; Sequence generator for lexers
+(define (in-lexer lexer port)
+  (port-count-lines! port)
+  (define (eof? tok)
+    (eq? (token-name (position-token-token tok))
+         'EOF))
+  (define (producer)
+    (lexer port))
+  (stop-after (in-producer producer) eof?))
+
 
 (define (calculate-indent stack indent)
   (define level (string-length indent))
@@ -108,18 +132,6 @@
          (stack-push! stack level)
          (token-INDENT)]
         [else (pop-until-eq 1)]))
-
-
-;; Sequence generator for lexers
-(define (in-lexer lexer port)
-  (port-count-lines! port)
-  (define (eof? tok)
-    (eq? (token-name (position-token-token tok))
-         'EOF))
-  (define (producer)
-    (lexer port))
-  (stop-after (in-producer producer) eof?))
-
 
 
 (define-tokens tokens
