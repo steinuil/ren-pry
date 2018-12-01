@@ -1,7 +1,7 @@
 #lang racket
 (require syntax/strip-context
-         "lexer.rkt"
-         "color-lexer.rkt")
+         "lexer/lexers.rkt"
+         "lexer/color-lexer.rkt")
 
 (provide (rename-out
           ;[renpy-read read]
