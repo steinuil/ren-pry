@@ -1,8 +1,8 @@
 #lang racket
 (require parser-tools/lex
          (prefix-in : parser-tools/lex-sre)
-         (only-in "lexer.rkt"
-                  renpy-string-lexer))
+         (only-in "sub-lexers.rkt"
+                  renpy-string-literal))
 
 (provide renpy-color-lexer)
 
@@ -20,8 +20,8 @@
             (position-offset end-pos))]
    [string-delimiter
     (let-values ([(str end-line end-col end-offset)
-                  (renpy-string-lexer input-port (string-ref lexeme 0)
-                                      (string-length lexeme))])
+                  (renpy-string-literal input-port (string-ref lexeme 0)
+                                        (string-length lexeme))])
       (values str 'string #f
               (position-offset start-pos)
               (position-offset

@@ -2,6 +2,18 @@
 (require parser-tools/lex
          (prefix-in : parser-tools/lex-sre))
 
+(provide (contract-out
+          [rename string-literal
+                  renpy-string-literal
+                  ((and/c input-port? port-counts-lines?)
+                   char?
+                   exact-positive-integer?
+                   . -> .
+                   (values (or/c string? #f)
+                           exact-positive-integer?
+                           exact-nonnegative-integer?
+                           exact-positive-integer?))]))
+
 (define-lex-abbrevs
   [whitespace (:or #\tab #\space)]
   [newline (:: (:? #\return) #\newline)]
