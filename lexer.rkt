@@ -55,17 +55,15 @@
    [#\} (token-R-BRACE)]
 
    ;; Empty line
-   [(:: newline (:* whitespace) (:? comment) newline)
+   [(:: newline (complement newline) (:? comment))
     (begin
-      (unget! input-port)
       (return-without-pos ((make-renpy-lexer indent-stack) input-port)))]
 
    [(:: newline (:or (:* #\space) (:* #\tab)))
     (calculate-indent indent-stack (substring lexeme 1))]
 
-   [(:: comment newline)
+   [comment
     (begin
-      (unget! input-port)
       (return-without-pos ((make-renpy-lexer indent-stack) input-port)))]
 
    [string-delimiter
@@ -168,7 +166,8 @@
 
 
 (define (unget! port (n 1))
-  (file-position port (- (file-position port) n)))
+  (define pos (file-position port))
+  (file-position port (- pos n)))
 
 ;; Sequence generator for lexers
 (define (in-lexer lexer port)
@@ -281,6 +280,6 @@
 
   (check-equal? (token-value (consume-token "\"\\\"\"")) "\"")
 
-  (check-equal? (token-name-list "# tfw no gf\n") '(NODENT EOF))
+  (check-equal? (token-name-list "# tfw no gf\n") '(EOF))
 
   (check-equal? (token-name-list "as if") '(AS IF EOF)))

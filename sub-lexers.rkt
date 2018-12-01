@@ -2,23 +2,23 @@
 (require parser-tools/lex
          (prefix-in : parser-tools/lex-sre))
 
-(provide (contract-out
-          [rename string-literal
-                  renpy-string-literal
-                  ((and/c input-port? port-counts-lines?)
-                   char?
-                   exact-positive-integer?
-                   . -> .
-                   (values (or/c string? #f)
-                           exact-positive-integer?
-                           exact-nonnegative-integer?
-                           exact-positive-integer?))]))
+(provide (except-out (all-defined-out)
+                     string-literal)
+         (contract-out [string-literal
+                        (-> (and/c input-port? port-counts-lines?)
+                            char?
+                            exact-positive-integer?
+                            (values (or/c string? #f)
+                                    exact-positive-integer?
+                                    exact-nonnegative-integer?
+                                    exact-positive-integer?))]))
+
 
 (define-lex-abbrevs
-  [whitespace (:or #\tab #\space)]
-  [newline (:: (:? #\return) #\newline)]
+  [white-space (:or #\space #\tab)]
+  [linebreak (:: (:? #\return) #\newline)]
 
-  [comment (:: #\# (:* (:~ #\newline)) newline)]
+  [comment (:: #\# (:* (:~ #\newline)))]
 
   [number (:/ #\0 #\9)]
   [letter (:or #\_ (:/ #\a #\z #\A #\Z
@@ -30,19 +30,18 @@
   [int-literal (:: (:? #\-) (:+ number))]
   [float-literal (:: (:? #\-) (:or (:: (:+ number) #\. (:* number))
                                    (:: #\. (:+ number))))]
+  [number-literal (:or int-literal float-literal)]
 
-  [string-delimiter (:or (:= 3 #\") (:= 3 #\') (:= 3 #\`)
-                         #\" #\' #\`)]
-  [empty-line (:: newline (:* whitespace) (:? comment) newline)]
-  [indentation (:: newline (:or (:* #\space) (:* #\tab)))])
+  [string-delim (:or (:= 3 #\") (:= 3 #\') (:= 3 #\`)
+                     #\" #\' #\`)]
+  [raw-string-delim (:: #\r string-delim)])
 
-;;
-(define (unget port (n 1))
-  (file-position port (- (file-position port) n)))
+;[empty-line (:: linebreak (:* white-space) (:? comment))]
+;[indentation (:: linebreak (:or (:* #\space) (:* #\tab)))]
+
 
 ;; TODO check if the ren'py parser allows an empty single-quote
 ;; string and then another string right after (I'm guessing not).
-;; TODO check if the port has location enabled
 (define (string-literal port delim n)
   (define out "")
   (define end-delim (make-string (- n 1) delim))
@@ -54,17 +53,18 @@
     (match (read-char port)
       [(? eof-object?)
        (values #f line col offset)]
-      [(== delim) #:when (= n 1)
+      [(== delim)
+       #:when (= n 1)
        (values out line (+ col 1) (+ offset 1))]
       [(== delim)
-       (define maybe-end (read-string (- n 1) port))
+       (define maybe-end (peek-string (- n 1) 0 port))
        (cond [(eof-object? maybe-end)
               (values #f line col offset)]
              [(string=? maybe-end end-delim)
+              (read-string (- n 1) port)
               (values out line (+ col n) (+ offset n))]
              [else
-              (unget port (- n 2))
-              (append-chars! delim (string-ref maybe-end 0))
+              (append-chars! delim (read-char port))
               (keep-lexing)])]
       [#\\
        (define escaped (read-char port))
@@ -79,8 +79,14 @@
        (append-chars! other-char)
        (keep-lexing)])))
 
+
 (module+ test
   (require rackunit)
+
+  (define-syntax-rule (check-lexes? sub-lexer str)
+    (let ([lex (lexer [sub-lexer lexeme]
+                      [any-char #f])])
+      (check-equal? (lex (open-input-string str)) str)))
 
   (define (lex-string str (delim #\`) (n 1))
     (define port (open-input-string str))
@@ -97,4 +103,6 @@
   (check-equal? (lex-string "abc\\`abc`") "abc`abc")
   (check-equal? (lex-string "abc\\abc`") "abc\\abc")
   ;(check-equal? (lex-string "abc\\\\`abc"))
-  )
+
+  (check-lexes? float-literal "-.1")
+  (check-lexes? float-literal "1."))

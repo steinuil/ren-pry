@@ -1,10 +1,10 @@
 #lang racket
 (require parser-tools/lex
          (prefix-in : parser-tools/lex-sre)
-         (only-in "sub-lexers.rkt"
-                  renpy-string-literal))
+         syntax-color/lexer-contract
+         "sub-lexers.rkt")
 
-(provide renpy-color-lexer)
+(provide (contract-out [renpy-color-lexer lexer/c]))
 
 (define renpy-color-lexer
   (lexer
@@ -18,47 +18,34 @@
     (values lexeme 'constant #f
             (position-offset start-pos)
             (position-offset end-pos))]
-   [string-delimiter
-    (let-values ([(str end-line end-col end-offset)
-                  (renpy-string-literal input-port (string-ref lexeme 0)
-                                        (string-length lexeme))])
-      (values str 'string #f
+   [string-delim
+    (let-values
+        ([(str end-line end-col end-offset)
+          (string-literal input-port (string-ref lexeme 0)
+                          (string-length lexeme))])
+      (values str (if str 'string 'error) #f
               (position-offset start-pos)
-              (position-offset
-               (position end-offset end-line end-col))))]
-   [(:+ whitespace)
-    (values lexeme 'whitespace #f
-            (position-offset start-pos)
-            (position-offset end-pos))]
+              (position-offset (position end-offset end-line end-col))))]
+   [raw-string-delim
+    (let-values
+        ([(str end-line end-col end-offset)
+          (string-literal input-port (string-ref lexeme 1)
+                          (- (string-length lexeme) 1))])
+      (values str (if str 'string 'error) #f
+              (position-offset start-pos)
+              (position-offset (position end-offset end-line end-col))))]
    [(:or #\( #\)
          #\[ #\]
          #\{ #\})
-    (values lexeme 'parenthesis (string-ref lexeme 0)
+    (values lexeme 'parenthesis
+            (string->symbol (substring lexeme 0 1))
+            (position-offset start-pos)
+            (position-offset end-pos))]
+   [(:+ white-space)
+    (values lexeme 'whitespace #f
             (position-offset start-pos)
             (position-offset end-pos))]
    [any-char
     (values lexeme 'no-color #f
             (position-offset start-pos)
             (position-offset end-pos))]))
-
-(define-lex-abbrevs
-  [newline (:: (:? #\return) #\newline)]
-
-  [whitespace (:or #\tab #\space)]
-  [comment (:: #\# (:* (:~ #\newline)))]
-
-  [string-delimiter (:or (:= 3 #\")
-                         (:= 3 #\')
-                         (:= 3 #\`)
-                         #\" #\' #\`)]
-
-  [letter (:or #\_ (:/ #\a #\z
-                       #\A #\Z
-                       #\u00A0 #\uFFFD))]
-  [number (:/ #\0 #\9)]
-  [word (:: letter (:* (:or letter number)))]
-  [image-word (:+ (:or #\- number letter))]
-  [number-literal (:: (:? #\-)
-                      (:or (:: (:+ number)
-                               (:? (:: #\. (:* number))))
-                           (:: #\. (:+ number))))])
