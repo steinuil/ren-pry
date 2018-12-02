@@ -1,9 +1,12 @@
 #lang racket/base
+(require racket/contract/base)
 
-(provide make-stack
-         stack-push!
-         stack-pop!
-         stack-peek)
+(provide make-stack stack-push!
+         stack-pop! stack-peek
+         stack/c)
+
+(define stack/c
+  (box/c (listof any/c)))
 
 (module+ test
   (require rackunit))

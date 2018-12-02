@@ -102,6 +102,7 @@
   (check-equal? (lex-string "abc\\`\\``") "abc``")
   (check-equal? (lex-string "abc\\`abc`") "abc`abc")
   (check-equal? (lex-string "abc\\abc`") "abc\\abc")
+  (check-equal? (lex-string "a\"" #\") "a")
   ;(check-equal? (lex-string "abc\\\\`abc"))
 
   (check-lexes? float-literal "-.1")

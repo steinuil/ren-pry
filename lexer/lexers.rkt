@@ -4,7 +4,7 @@
          "stack.rkt"
          "sub-lexers.rkt")
 
-(provide make-renpy-lexer in-lexer)
+(provide in-lexer make-renpy-lexer)
 
 (define (renpy-lexer indent-stack)
   (lexer-src-pos
@@ -62,23 +62,19 @@
    [comment
     (return-without-pos ((renpy-lexer indent-stack) input-port))]
 
-   [string-delim
-    (let-values ([(str end-line end-col end-offset)
-                  (string-literal input-port (string-ref lexeme 0)
-                                  (string-length lexeme))])
-      (return-without-pos
-       (position-token (token-STRING str)
-                       (position-offset start-pos)
-                       (position-offset (position end-offset end-line end-col)))))]
-
-   [raw-string-delim
-    (let-values ([(str end-line end-col end-offset)
-                  (string-literal input-port (string-ref lexeme 1)
-                                  (- (string-length lexeme) 1))])
-      (return-without-pos
-       (position-token (token-RAW-STRING str)
-                       (position-offset start-pos)
-                       (position-offset (position end-offset end-line end-col)))))]
+   [(:: (:? #\r) string-delim)
+    (let* ([len (string-length lexeme)]
+           [char (string-ref lexeme (if (even? len) 1 0))]
+           [quote-len (if (even? len) (- len 1) len)])
+      (define-values (str end-line end-col end-offset)
+        (string-literal input-port char quote-len))
+      (if str
+          (return-without-pos
+           (position-token
+            ((if (even? len) token-RAW-STRING token-STRING) str)
+            (position-offset start-pos)
+            (position-offset (position end-offset end-line end-col))))
+          (error)))]
 
    [word (token-WORD lexeme)]
    [number-literal (token-NUMBER lexeme)]
