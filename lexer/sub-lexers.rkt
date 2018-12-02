@@ -36,12 +36,7 @@
                      #\" #\' #\`)]
   [raw-string-delim (:: #\r string-delim)])
 
-;[empty-line (:: linebreak (:* white-space) (:? comment))]
-;[indentation (:: linebreak (:or (:* #\space) (:* #\tab)))]
 
-
-;; TODO check if the ren'py parser allows an empty single-quote
-;; string and then another string right after (I'm guessing not).
 (define (string-literal port delim n)
   (define out "")
   (define end-delim (make-string (- n 1) delim))
@@ -68,13 +63,15 @@
               (keep-lexing)])]
       [#\\
        (define escaped (read-char port))
-       (if (eof-object? escaped)
-           (values #f line col offset)
-           (begin
-             (unless (eq? escaped delim)
-               (append-chars! #\\))
-             (append-chars! escaped)
-             (keep-lexing)))]
+       (cond [(eof-object? escaped)
+              (values #f line col offset)]
+             [(or (eq? escaped delim)
+                  (eq? escaped #\\))
+              (append-chars! escaped)
+              (keep-lexing)]
+             [else
+              (append-chars! #\\ escaped)
+              (keep-lexing)])]
       [other-char
        (append-chars! other-char)
        (keep-lexing)])))
@@ -103,7 +100,7 @@
   (check-equal? (lex-string "abc\\`abc`") "abc`abc")
   (check-equal? (lex-string "abc\\abc`") "abc\\abc")
   (check-equal? (lex-string "a\"" #\") "a")
-  ;(check-equal? (lex-string "abc\\\\`abc"))
+  (check-equal? (lex-string "abc\\\\`abc") "abc\\")
 
   (check-lexes? float-literal "-.1")
   (check-lexes? float-literal "1."))

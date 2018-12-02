@@ -74,7 +74,7 @@
             ((if (even? len) token-RAW-STRING token-STRING) str)
             (position-offset start-pos)
             (position-offset (position end-offset end-line end-col))))
-          (error)))]
+          (error "unterminated string")))]
 
    [word (token-WORD lexeme)]
    [number-literal (token-NUMBER lexeme)]
@@ -178,7 +178,6 @@
    INDENT NODENT))
 
 
-
 ;;; Test
 (module+ test
   (require rackunit)
@@ -223,9 +222,9 @@
   (check-equal? (consume-token ".23") (token-NUMBER ".23"))
   (check-equal? (consume-token "-.12") (token-NUMBER "-.12"))
 
-  ;(check-equal? (token-value (consume-token "\"\"\"a\"\"")) "\"\"")
-  ;(check-equal? (token-value (consume-token "\"\"\"a\"")) "\"\"")
-  ;(check-equal? (token-value (consume-token "\"\"\"a")) "\"\"")
+  (check-exn exn:fail? (thunk (token-value (consume-token "\"\"\"a\"\""))))
+  (check-exn exn:fail? (thunk (token-value (consume-token "\"\"\"a\""))))
+  (check-exn exn:fail? (thunk (token-value (consume-token "\"\"\"a"))))
 
   (check-equal? (token-value (consume-token "\"\\\"\"")) "\"")
 
